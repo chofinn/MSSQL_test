@@ -1,111 +1,114 @@
-import sys
-from PyQt5.QtWidgets import QDialog, QApplication
-from UI import Ui_Form
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.dialects.mssql import \
-    BIGINT, BINARY, BIT, CHAR, DATE, DATETIME, DATETIME2, \
-    DATETIMEOFFSET, DECIMAL, FLOAT, IMAGE, INTEGER, MONEY, \
-    NCHAR, NTEXT, NUMERIC, NVARCHAR, REAL, SMALLDATETIME, \
-    SMALLINT, SMALLMONEY, SQL_VARIANT, TEXT, TIME, \
-    TIMESTAMP, TINYINT, UNIQUEIDENTIFIER, VARBINARY, VARCHAR
-from sqlalchemy import Table, MetaData, Column, Integer, String, ForeignKey
-from sqlalchemy.orm import mapper
-from sqlalchemy.orm import sessionmaker
-import uuid
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
+import os
+from flask_cors import CORS
+from fbauth import check_token
+import re
+import json
 
-engine = create_engine('mssql+pyodbc://sa:justChi11@127.0.0.1/test?driver=SQL+Server+Native+Client+11.0')
+app = Flask(__name__)
 
-Base = declarative_base()
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+pymysql://sa:@127.0.0.1:3306/test"
 
+db = SQLAlchemy(app)
+ma = Marshmallow(app)
 
-#建立school資料表對應
-school_metadata = MetaData()
-
-school = Table('School', school_metadata,
-            Column('ID', UNIQUEIDENTIFIER, primary_key=True),
-            Column('Name', NVARCHAR(8))
-        )
-
-class School(object):
-    def __init__(self, ID, Name):
-        self.ID = ID
-        self.Name = Name
-
-mapper(School, school)
+CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 
 
-#建立student資料表對應
-student_metadata = MetaData()
+class Student(db.Model):
+    student_id = db.Column(db.Integer, primary_key=True)
+    student_name = db.Column(db.String(100), nullable=False)
 
-student = Table('Student', student_metadata,
-            Column('ID', UNIQUEIDENTIFIER, primary_key=True),
-            Column('Name', NVARCHAR(10)),
-            Column('School', UNIQUEIDENTIFIER, ForeignKey(School.ID)),
-            Column('Sex', NVARCHAR(5))
-        )
+    def __init__(self, student_id, student_name):
+        self.student_id = student_id
+        self.student_name = student_name
 
-class Student(object):
-    def __init__(self, ID, Name, School, Sex):
-        self.ID = ID
-        self.Name = Name
-        self.School = School
-        self.Sex = Sex
-
-mapper(Student, student)
+class StudentSchema(ma.Schema):
+    class Meta:
+        # Fields to expose
+        fields = ('student_id', 'student_name')
 
 
-Base.metadata.create_all(engine)
+student_schema = StudentSchema()
+students_schema = StudentSchema(many=True)
 
 
-Session = sessionmaker()
-Session.configure(bind=engine)
-session = Session()
-
-
-class AppWindow(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.ui = Ui_Form()
-        self.ui.setupUi(self)
-
-        #為新增按鈕的點擊事件綁定function
-        self.ui.CButton.clicked.connect(self.CButton_Clicked)
-
-        #為查詢按鈕的點擊事件綁定function
-        self.ui.RButton.clicked.connect(self.RButton_Clicked)
-
-        self.show()
-
-    def CButton_Clicked(self):
-
-        #依照校名找出該校資料
-        tschool = session.query(School).filter(School.Name==self.ui.CSchoolTextBox.text()).one()
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+#         Student CRUD          #
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# endpoint to create new student
+#++++++++++++++++++++++++++++++++
+@app.route("/student", methods=["POST"])
+def add_student():
+    columns = ['student_id', 'student_name']
+    col_values = []
+    for c in columns:
+        if c in request.values:
+            col_values.append(request.values[c])
+        else:
+            col_values.append("None")
         
-        #將各資料塞進物件
-        newstudent = Student(ID=uuid.uuid4(), Name=self.ui.CNameTextBox.text(), Sex=self.ui.CSexTextBox.text(), School=tschool.ID)
-        
-        #將物件存於記憶體
-        session.add(newstudent)
-        # 這裡是一次增加一筆
-        # 若將來需要增加多筆可以改成以下寫法
-        # session.add_all([
-        #     Student(ID=uuid.uuid4(), Name='Student1', School='School1', Sex='男生'),
-        #     Student(ID=uuid.uuid4(), Name='Student2', School='School2', Sex='女生'),
-        #     Student(ID=uuid.uuid4(), Name='Student3', School='School3', Sex='女生')])
-        
-        #確認修改資料庫
-        session.commit()
+    new_student = Student(*col_values)
+    
+    db.session.add(new_student)
+    db.session.commit()
 
-    def RButton_Clicked(self):
-        
-        #依照學生姓名撈出該名學生所有資料，使用join
-        tstudent = session.query(Student,School).join(School,Student.School==School.ID).filter(Student.Name==self.ui.RNameTextbox.text()).one()
-        self.ui.lineEdit.setText('ID：'+tstudent.Student.ID+',性名：'+tstudent.Student.Name+
-            ',性別：'+tstudent.Student.Sex+',學校：'+tstudent.School.Name)
+    return {'message': 'successfully create new student'},200
+#++++++++++++++++++++++++++++++++
 
+# endpoint to show all students
+#================================
+@app.route("/student", methods=["GET"])
+def get_student():
+    all_students = Student.query.all()
+    result = students_schema.dump(all_students)
 
-app = QApplication(sys.argv)
-w = AppWindow()
-w.show()
-sys.exit(app.exec_())
+    result_json = students_schema.jsonify(result)
+
+    return result_json
+#================================
+
+# endpoint to get student detail by id
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+@app.route("/student/<id>", methods=["GET"])
+def student_detail(id):
+    student = Student.query.get(id)
+
+    return student_schema.jsonify(student)
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+# endpoint to update student
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@app.route("/student/<id>", methods=["PUT"])
+def student_update(id):
+    student = Student.query.get(id)
+    columns = ['student_id', 'student_name']
+    for c in columns:
+        if c in request.values:
+            setattr(student, c, request.values[c])
+            
+
+    db.session.commit()
+    return {'message': 'successfully update student'}, 200
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# endpoint to delete student
+#--------------------------------
+@app.route("/student/<id>", methods=["DELETE"])
+#@check_token
+def student_delete(id):
+    student = Student.query.get(id)
+
+    db.session.delete(student)
+    db.session.commit()
+
+    return {'message': 'successfully delete student'}, 200
+#--------------------------------
+
+if __name__ == '__main__':
+    app.run(debug = True, host="0.0.0.0", port=8080)
+    # app.run(debug=True)
