@@ -5,11 +5,16 @@ import os
 from flask_cors import CORS
 import re
 import json
-
+import configparser
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pymssql://sa:justChi11@127.0.0.1:1433/test"
+config = configparser.Configparser
+config.read('config.ini')
+pw = config['SERVER_INFO']['PASSWORD']
+ip = config['SERVER_INFO']['SERVER_IP']
+db_name = config['SERVER_INFO']['DB_NAME']
+app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pymssql://sa:{}@{}/{}".format(pw, ip, db_name)
 #params = urllib.parse.quote_plus('DRIVER={SQL Server};SERVER=HARRISONS-THINK;DATABASE=LendApp;Trusted_Connection=yes;')
 #app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pyodbc:///?odbc_connect=%s" % params
 
