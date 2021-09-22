@@ -3,7 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 import os
 from flask_cors import CORS
-from fbauth import check_token
 import re
 import json
 
