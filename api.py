@@ -9,7 +9,7 @@ import configparser
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-config = configparser.Configparser
+config = configparser.ConfigParser()
 config.read('config.ini')
 pw = config['SERVER_INFO']['PASSWORD']
 ip = config['SERVER_INFO']['SERVER_IP']
@@ -26,11 +26,10 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 
 
 class Student(db.Model):
-    student_id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    student_id = db.Column(db.Integer, primary_key=True)
     student_name = db.Column(db.String(100), nullable=False)
 
-    def __init__(self, student_id, student_name):
-        self.student_id = student_id
+    def __init__(self, student_name):
         self.student_name = student_name
 
 class StudentSchema(ma.Schema):
@@ -52,13 +51,13 @@ def index():
 #++++++++++++++++++++++++++++++++
 @app.route("/student", methods=["POST"])
 def add_student():
-    columns = ['student_id', 'student_name']
+    columns = ['student_name']
     col_values = []
     for c in columns:
         if c in request.values:
             col_values.append(request.values[c])
         else:
-            col_values.append("None")
+            col_values.append("")
         
     new_student = Student(*col_values)
     
