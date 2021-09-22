@@ -9,7 +9,9 @@ import json
 app = Flask(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+pymysql://sa:@127.0.0.1:3306/test"
+app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pymssql://sa:justChi11@127.0.0.1:1433/test"
+#params = urllib.parse.quote_plus('DRIVER={SQL Server};SERVER=HARRISONS-THINK;DATABASE=LendApp;Trusted_Connection=yes;')
+#app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pyodbc:///?odbc_connect=%s" % params
 
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
@@ -19,7 +21,7 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 
 
 class Student(db.Model):
-    student_id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, primary_key=True, autoincrement=False)
     student_name = db.Column(db.String(100), nullable=False)
 
     def __init__(self, student_id, student_name):
@@ -35,7 +37,9 @@ class StudentSchema(ma.Schema):
 student_schema = StudentSchema()
 students_schema = StudentSchema(many=True)
 
-
+@app.route("/")
+def index():
+    return "it works"
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 #         Student CRUD          #
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
